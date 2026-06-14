@@ -7,18 +7,18 @@ import {
 
 // ─── VAULT AUTH — double biometric, then PIN fallback ─────────────────────────
 export function useVaultAuth() {
-  const [state, setState] = useState('idle'); // idle | bio1 | bio2 | pin | done | failed | cooldown
+  const [state, setState] = useState('idle');
   const [error, setError] = useState('');
 
   const startAuth = useCallback(async () => {
     const remaining = await getCooldownRemaining();
     if (remaining > 0) {
       setState('cooldown');
-      setError(`Too many attempts. Try again in ${Math.ceil(remaining / 1000)}s`);
+      setError('Too many attempts. Try again in ' + Math.ceil(remaining / 1000) + 's');
       return false;
     }
 
-    const hasHW = await LocalAuthentication.hasHardwareAsync();
+    const hasHW      = await LocalAuthentication.hasHardwareAsync();
     const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
     if (!hasHW || !isEnrolled) {
@@ -26,12 +26,13 @@ export function useVaultAuth() {
       return 'needs_pin';
     }
 
-    // First biometric
+    // First biometric — same options as working Expense app
     setState('bio1');
     const result1 = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Verify your identity',
-      disableDeviceFallback: true,
-      cancelLabel: 'Cancel',
+      promptMessage:          'Verify your identity',
+      fallbackLabel:          'Use PIN',
+      disableDeviceFallback:  false,
+      requireConfirmation:    false,
     });
 
     if (!result1.success) {
@@ -45,9 +46,10 @@ export function useVaultAuth() {
     // Second biometric — vault confirmation
     setState('bio2');
     const result2 = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Confirm vault access',
-      disableDeviceFallback: true,
-      cancelLabel: 'Cancel',
+      promptMessage:          'Confirm vault access',
+      fallbackLabel:          'Use PIN',
+      disableDeviceFallback:  false,
+      requireConfirmation:    false,
     });
 
     if (!result2.success) {
@@ -71,15 +73,16 @@ export function useAppLockAuth() {
   const [state, setState] = useState('idle');
   const [error, setError] = useState('');
 
-  const authenticate = useCallback(async (appName = 'this app') => {
+  const authenticate = useCallback(async (appName) => {
+    const name = appName || 'this app';
     const remaining = await getCooldownRemaining();
     if (remaining > 0) {
       setState('cooldown');
-      setError(`Wait ${Math.ceil(remaining / 1000)}s`);
+      setError('Wait ' + Math.ceil(remaining / 1000) + 's');
       return false;
     }
 
-    const hasHW = await LocalAuthentication.hasHardwareAsync();
+    const hasHW      = await LocalAuthentication.hasHardwareAsync();
     const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
     if (!hasHW || !isEnrolled) {
@@ -89,9 +92,10 @@ export function useAppLockAuth() {
 
     setState('bio');
     const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: `Unlock ${appName}`,
-      disableDeviceFallback: true,
-      cancelLabel: 'Cancel',
+      promptMessage:          'Unlock ' + name,
+      fallbackLabel:          'Use PIN',
+      disableDeviceFallback:  false,
+      requireConfirmation:    false,
     });
 
     if (result.success) {
@@ -107,7 +111,6 @@ export function useAppLockAuth() {
     return false;
   }, []);
 
-  // Validate PIN entry
   const verifyPinEntry = useCallback(async (pin, storedHash) => {
     const ok = await verifyPin(pin, storedHash);
     if (ok) {
