@@ -1,32 +1,35 @@
 import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, PanResponder } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
 import { encodeGesture } from '../utils/security';
 
-// ─── GESTURE CANVAS ───────────────────────────────────────────────────────────
-// PanResponder-based drawing canvas.
-// User draws any shape. Points are captured and encoded on release.
-// onGestureComplete(encodedVectors) called when user lifts finger.
+// ─── GESTURE CANVAS — pure React Native, no SVG dependency ───────────────────
+// Draws gesture path using tiny View dots instead of SVG Path
+// This avoids react-native-svg entirely — zero crash risk on any device
 export default function GestureCanvas({ T, onGestureComplete, height = 220 }) {
-  const [pathD, setPathD] = useState('');
+  const [dots, setDots]     = useState([]);
   const [hasDrawn, setHasDrawn] = useState(false);
   const points = useRef([]);
+  const canvasRef = useRef(null);
+  const [canvasLayout, setCanvasLayout] = useState({ x: 0, y: 0 });
 
   const pan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder:  () => true,
 
     onPanResponderGrant: (e) => {
       const { locationX, locationY } = e.nativeEvent;
       points.current = [{ x: locationX, y: locationY }];
-      setPathD(`M${locationX},${locationY}`);
+      setDots([{ x: locationX, y: locationY }]);
       setHasDrawn(false);
     },
 
     onPanResponderMove: (e) => {
       const { locationX, locationY } = e.nativeEvent;
       points.current.push({ x: locationX, y: locationY });
-      setPathD(d => d + `L${locationX},${locationY}`);
+      // Only keep every 3rd point for rendering — reduces view count
+      if (points.current.length % 3 === 0) {
+        setDots(prev => [...prev, { x: locationX, y: locationY }]);
+      }
     },
 
     onPanResponderRelease: () => {
@@ -40,29 +43,31 @@ export default function GestureCanvas({ T, onGestureComplete, height = 220 }) {
 
   return (
     <View
+      ref={canvasRef}
       style={[styles.canvas, { height, borderColor: T.border, backgroundColor: T.surface2 }]}
       {...pan.panHandlers}
     >
-      <Svg style={StyleSheet.absoluteFill}>
-        {pathD ? (
-          <Path
-            d={pathD}
-            stroke={T.accent}
-            strokeWidth={3}
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        ) : null}
-      </Svg>
-      {!hasDrawn && !pathD ? (
+      {dots.map((dot, i) => (
+        <View
+          key={i}
+          style={[
+            styles.dot,
+            {
+              left: dot.x - 2,
+              top:  dot.y - 2,
+              backgroundColor: T.accent,
+            },
+          ]}
+        />
+      ))}
+      {dots.length === 0 ? (
         <Text style={[styles.hint, { color: T.sub }]}>
           Draw any shape with your finger
         </Text>
       ) : null}
       {hasDrawn ? (
         <Text style={[styles.recorded, { color: T.accent }]}>
-          ✓ Gesture recorded
+          Gesture recorded
         </Text>
       ) : null}
     </View>
@@ -77,11 +82,23 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
-  hint: { fontSize: 14, textAlign: 'center' },
+  dot: {
+    position: 'absolute',
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  hint: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
   recorded: {
     position: 'absolute',
-    bottom: 12, alignSelf: 'center',
-    fontSize: 13, fontWeight: '600',
+    bottom: 12,
+    alignSelf: 'center',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
