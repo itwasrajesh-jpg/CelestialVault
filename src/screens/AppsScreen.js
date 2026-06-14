@@ -304,7 +304,7 @@ function VaultBioFlow({ T, app, onSuccess, onCancel, pinHash }) {
       </Text>
       <Text style={[styles.bioSub, { color: T.sub }]}>
         {step === 'bio1'
-          ? `Moving ${app.appName} to your vault`
+          ? ('Moving ' + app.appName + ' to your vault')
           : 'One more scan for extra security'}
       </Text>
       <TouchableOpacity
