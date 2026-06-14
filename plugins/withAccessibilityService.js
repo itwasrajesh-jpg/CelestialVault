@@ -12,7 +12,6 @@ function withAccessibilityServiceKotlin(config) {
       );
       fs.mkdirSync(dir, { recursive: true });
 
-      // Clean Kotlin — no unused imports
       const kt = `package com.celestial.vault
 
 import android.accessibilityservice.AccessibilityService
@@ -50,7 +49,6 @@ class AppLockAccessibilityService : AccessibilityService() {
 `;
       fs.writeFileSync(path.join(dir, 'AppLockAccessibilityService.kt'), kt);
 
-      // XML config — no reference to missing string resource
       const xmlDir = path.join(
         config.modRequest.platformProjectRoot,
         'app/src/main/res/xml'
@@ -78,6 +76,18 @@ function withAccessibilityServiceManifest(config) {
     const manifest = config.modResults;
     const app = manifest.manifest.application[0];
 
+    // ── Add queries block for installed apps (Android 11+ proper way) ──────────
+    // This replaces QUERY_ALL_PACKAGES permission which blocks Xiaomi install
+    if (!manifest.manifest.queries) {
+      manifest.manifest.queries = [{
+        intent: [{
+          action: [{ $: { 'android:name': 'android.intent.action.MAIN' } }],
+          category: [{ $: { 'android:name': 'android.intent.category.LAUNCHER' } }],
+        }],
+      }];
+    }
+
+    // ── Add accessibility service ───────────────────────────────────────────────
     if (!app.service) app.service = [];
 
     const already = app.service.some(
