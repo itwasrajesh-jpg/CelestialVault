@@ -1,8 +1,7 @@
 const { withAndroidManifest, withDangerousMod } = require('@expo/config-plugins');
-const fs = require('fs');
+const fs   = require('fs');
 const path = require('path');
 
-// ── Write AppLockAccessibilityService.kt ─────────────────────────────────────
 function withAccessibilityServiceKotlin(config) {
   return withDangerousMod(config, [
     'android',
@@ -13,64 +12,57 @@ function withAccessibilityServiceKotlin(config) {
       );
       fs.mkdirSync(dir, { recursive: true });
 
+      // Clean Kotlin — no unused imports
       const kt = `package com.celestial.vault
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Intent
 import android.view.accessibility.AccessibilityEvent
-import com.facebook.react.bridge.ReactApplicationContext
-import com.facebook.react.modules.core.DeviceEventManagerModule
 
 class AppLockAccessibilityService : AccessibilityService() {
 
   override fun onServiceConnected() {
-    val info = AccessibilityServiceInfo().apply {
-      eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-      feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
-      flags = AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
-      notificationTimeout = 100
-    }
+    val info = AccessibilityServiceInfo()
+    info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+    info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
+    info.flags = AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
+    info.notificationTimeout = 100
     serviceInfo = info
   }
 
   override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-    if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+    if (event == null) return
+    if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
       val pkg = event.packageName?.toString() ?: return
-      // Emit to React Native via DeviceEventEmitter
-      sendEventToRN("AppForeground", pkg)
+      try {
+        val intent = Intent("com.celestial.vault.APP_FOREGROUND")
+        intent.putExtra("package", pkg)
+        sendBroadcast(intent)
+      } catch (e: Exception) {
+        e.printStackTrace()
+      }
     }
   }
 
   override fun onInterrupt() {}
-
-  private fun sendEventToRN(eventName: String, data: String) {
-    try {
-      val ctx = applicationContext
-      // Send broadcast — RN module listens for this
-      val intent = android.content.Intent("com.celestial.vault.APP_FOREGROUND")
-      intent.putExtra("package", data)
-      sendBroadcast(intent)
-    } catch (e: Exception) {
-      e.printStackTrace()
-    }
-  }
 }
 `;
       fs.writeFileSync(path.join(dir, 'AppLockAccessibilityService.kt'), kt);
 
-      // Write accessibility service config XML
+      // XML config — no reference to missing string resource
       const xmlDir = path.join(
         config.modRequest.platformProjectRoot,
         'app/src/main/res/xml'
       );
       fs.mkdirSync(xmlDir, { recursive: true });
+
       const xml = `<?xml version="1.0" encoding="utf-8"?>
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
   android:accessibilityEventTypes="typeWindowStateChanged"
   android:accessibilityFeedbackType="feedbackGeneric"
   android:accessibilityFlags="flagIncludeNotImportantViews"
   android:canRetrieveWindowContent="false"
-  android:description="@string/accessibility_service_description"
   android:notificationTimeout="100"
   android:settingsActivity="com.celestial.vault.MainActivity" />
 `;
@@ -81,7 +73,6 @@ class AppLockAccessibilityService : AccessibilityService() {
   ]);
 }
 
-// ── Inject service into AndroidManifest ──────────────────────────────────────
 function withAccessibilityServiceManifest(config) {
   return withAndroidManifest(config, async (config) => {
     const manifest = config.modResults;
@@ -89,33 +80,27 @@ function withAccessibilityServiceManifest(config) {
 
     if (!app.service) app.service = [];
 
-    const serviceExists = app.service.some(
-      (s) => s.$?.['android:name'] === '.AppLockAccessibilityService'
+    const already = app.service.some(
+      s => s.$?.['android:name'] === '.AppLockAccessibilityService'
     );
 
-    if (!serviceExists) {
+    if (!already) {
       app.service.push({
         $: {
-          'android:name': '.AppLockAccessibilityService',
-          'android:exported': 'true',
+          'android:name':       '.AppLockAccessibilityService',
+          'android:exported':   'true',
           'android:permission': 'android.permission.BIND_ACCESSIBILITY_SERVICE',
-          'android:label': '@string/app_name',
+          'android:label':      '@string/app_name',
         },
-        'intent-filter': [
-          {
-            action: [
-              { $: { 'android:name': 'android.accessibilityservice.AccessibilityService' } },
-            ],
+        'intent-filter': [{
+          action: [{ $: { 'android:name': 'android.accessibilityservice.AccessibilityService' } }],
+        }],
+        'meta-data': [{
+          $: {
+            'android:name':     'android.accessibilityservice',
+            'android:resource': '@xml/accessibility_service_config',
           },
-        ],
-        'meta-data': [
-          {
-            $: {
-              'android:name': 'android.accessibilityservice',
-              'android:resource': '@xml/accessibility_service_config',
-            },
-          },
-        ],
+        }],
       });
     }
 
