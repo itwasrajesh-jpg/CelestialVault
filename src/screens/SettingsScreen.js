@@ -204,7 +204,7 @@ export default function SettingsScreen({ T, animLevel, state, dispatch }) {
           {!state.accessibilityEnabled && (
             <TouchableOpacity
               style={[styles.accentBtn, { backgroundColor: T.accent, marginTop: 12 }]}
-              onPress={() => Linking.openSettings()}
+              onPress={() => Linking.openURL("android.settings.ACCESSIBILITY_SETTINGS").catch(() => Linking.openSettings())}
             >
               <Text style={styles.accentBtnTxt}>Open Accessibility Settings</Text>
             </TouchableOpacity>

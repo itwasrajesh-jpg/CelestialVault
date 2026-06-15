@@ -108,7 +108,7 @@ export default function OnboardingScreen({ T, dispatch }) {
             </View>
             <TouchableOpacity
               style={[styles.accentBtn, { backgroundColor: T.accent }]}
-              onPress={() => Linking.openSettings()}
+              onPress={() => Linking.openURL("android.settings.ACCESSIBILITY_SETTINGS").catch(() => Linking.openSettings())}
             >
               <Text style={styles.accentBtnTxt}>Open Accessibility Settings</Text>
             </TouchableOpacity>
